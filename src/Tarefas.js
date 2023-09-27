@@ -1,5 +1,5 @@
-import FirebaseApp from "./config";
-import { useState } from "react";
+import firebaseApp from "./config";
+import { useState, useEffect } from "react";
 
 import {
   getFirestore,
@@ -7,23 +7,163 @@ import {
   getDocs,
   orderBy,
   query,
+  doc,
+  updateDoc,
+  addDoc,
+  deleteDoc,
 } from "firebase/firestore";
 
-const db = getFirestore(FirebaseApp);
+const db = getFirestore(firebaseApp);
+
 const colTarefas = collection(db, "tarefas");
-export default function tarefas() {
-  const [listaTarefas, setListaTarefas] = useState("");
+
+export default function Tarefas() {
+  const [listaTarefas, setListaTarefas] = useState([]);
+  const [novo, setNovo] = useState("");
+  const [carregado, setCarregado] = useState(false);
+
   async function listar() {
-    const filtro = query(colTarefas, orderBy("dataCadastro"));
-    const retorno = await getDocs(filtro);
-    retorno.forEach((item) => {
-      console.log(item.data());
-    });
+    let tarefas = localStorage.getItem("tarefas");
+
+    if (tarefas) {
+      setListaTarefas(JSON.parse(tarefas));
+    } else {
+      setListaTarefas([]);
+
+      const filtro = query(colTarefas, orderBy("dataCadastro"));
+      const retorno = await getDocs(filtro);
+      retorno.forEach((item) => {
+        let dados = item.data();
+        dados.id = item.id;
+        listaTarefas.push(dados);
+        // setListaTarefas([...listaTarefas]);
+        // executa somente depois do render de html ter concluido
+        setListaTarefas((listaTarefas) => [...listaTarefas, dados]);
+        localStorage.setItem("tarefas", JSON.stringify(listaTarefas));
+      });
+    }
   }
+
+  async function alternaFeito(ev) {
+    let id = ev.target.value;
+
+    let selecionado = listaTarefas.findIndex((item) => {
+      return item.id === id;
+    });
+
+    listaTarefas[selecionado].feito = !listaTarefas[selecionado].feito;
+    setListaTarefas([...listaTarefas]);
+
+    let tarefaAlterar = doc(db, "tarefas", id);
+    await updateDoc(tarefaAlterar, listaTarefas[selecionado]);
+  }
+
+  async function add() {
+    let novaTarefa = {
+      tarefa: novo,
+      feito: false,
+      dataCadastro: new Date(),
+    };
+
+    let docCadastrado = await addDoc(colTarefas, novaTarefa);
+    novaTarefa.id = docCadastrado.id;
+    listaTarefas.push(novaTarefa);
+
+    setListaTarefas([...listaTarefas]);
+  }
+
+  async function del(ev) {
+    let id = ev.target.getAttribute("listaid");
+    let selecionado = doc(db, "tarefas", id);
+    console.log(id, listaTarefas);
+    await deleteDoc(selecionado);
+
+    let idx = listaTarefas.findIndex((item) => {
+      return item.id === id;
+    });
+    listaTarefas.splice(idx, 1);
+    setListaTarefas([...listaTarefas]);
+  }
+
+  // Executa apos o componente ser renderizado
+  useEffect(() => {
+    if (carregado === false) {
+      listar();
+      setCarregado(true);
+    }
+  }, [carregado]);
+
   return (
-    <div>
-      <h1>Lista de tarefas</h1>
-      <button onClick={listar}>Listar</button>
+    <div className="row">
+      <div className="col">
+        <h1>Lista de Tarefas</h1>
+
+        <div className="input-group">
+          <input
+            onChange={(e) => setNovo(e.target.value)}
+            className="form-control"
+            type="text"
+          />
+          <button
+            onClick={add}
+            className="btn btn-outline-primary"
+            type="button"
+          >
+            Add
+          </button>
+        </div>
+
+        <ul className="list-group mt-4">
+          {listaTarefas.map((item) => {
+            let cssLabel = "form-check-label";
+            cssLabel =
+              item.feito === true
+                ? cssLabel + " text-decoration-line-through"
+                : cssLabel;
+
+            let dataFim = item.dataLimite
+              ? new Date(item.dataLimite.seconds * 1000)
+              : "";
+
+            let dataAtual = new Date();
+
+            let atrasado = "";
+            if (
+              item.dataLimite &&
+              item.feito === false &&
+              dataAtual > dataFim
+            ) {
+              atrasado = <span className="badge text-bg-danger">Atrasado</span>;
+            }
+
+            return (
+              <li className="list-group-item " key={item.id}>
+                <input
+                  className="form-check-input me-1"
+                  type="checkbox"
+                  onChange={alternaFeito}
+                  value={item.id}
+                  checked={item.feito}
+                />
+                <label className={cssLabel}>{item.tarefa}</label>
+                <div className="d-flex justify-content-end">
+                  <span className="badge text-bg-primary">
+                    {dataFim.toLocaleString()}
+                  </span>
+                  {atrasado}
+                  <input
+                    onClick={del}
+                    listaid={item.id}
+                    type="button"
+                    className="btn btn-outline-danger btn-sm"
+                    value="DEL"
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     </div>
   );
 }

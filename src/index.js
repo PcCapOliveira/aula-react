@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { StrictMode } from "react";
 
 import "bootstrap/dist/css/bootstrap.css";
 
@@ -10,6 +11,7 @@ import Pokedex from "./Pokedex";
 import Ola from "./Ola";
 import Cidades from "./Cidades";
 import Tarefas from "./Tarefas";
+import Login from "./Login";
 
 const rotas = createBrowserRouter([
   {
@@ -32,13 +34,16 @@ const rotas = createBrowserRouter([
     path: "/tarefas",
     element: <Tarefas />,
   },
+  {
+    path: "/login",
+    element: <Login />,
+  },
 ]);
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
-  <div>
+  <div className="container">
     <Links />
-
     <RouterProvider router={rotas}></RouterProvider>
   </div>
 );
